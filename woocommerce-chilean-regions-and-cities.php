@@ -33,8 +33,8 @@ if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins',
 define( 'MULTICOURIER_VERSION', '1.0.0' );
 define( 'MULTICOURIER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MULTICOURIER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-//define( 'MULTICOURIER_API_URL', 'https://app.multicouriers.cl/api/' );
-define( 'MULTICOURIER_API_URL', 'https://multicouriers.test/api/' );
+define( 'MULTICOURIER_API_URL', 'https://app.multicouriers.cl/api/' );
+//define( 'MULTICOURIER_API_URL', 'https://multicouriers.test/api/' );
 
 class CCFW_Logger {
 	public static function log( $message, $level = 'info' ) {
