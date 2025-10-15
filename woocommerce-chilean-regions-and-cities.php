@@ -34,6 +34,7 @@ define( 'MULTICOURIER_VERSION', '1.0.0' );
 define( 'MULTICOURIER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MULTICOURIER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'MULTICOURIER_API_URL', 'https://app.multicouriers.cl/api/' );
+
 //define( 'MULTICOURIER_API_URL', 'https://multicouriers.test/api/' );
 
 class CCFW_Logger {
@@ -74,10 +75,11 @@ if ( ! class_exists( 'MC_Shipping' ) ) {
 			add_filter( 'woocommerce_checkout_fields', [ $this, 'modifyCheckoutFields' ] );
 			add_filter( 'woocommerce_default_address_fields', [ $this, 'wc_reorder_region_field' ] );
 			add_filter( 'woocommerce_get_country_locale', [ $this, 'wc_change_state_label_locale' ] );
-			//add_filter( 'woocommerce_states', [ $this, 'load_communes' ] );
-			//add_action( 'wp_footer', [ $this, 'customCheckoutScript' ] );
+			add_filter( 'default_checkout_billing_state', '__return_empty_string' );
+			add_filter( 'default_checkout_shipping_state', '__return_empty_string' );
 			add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_my_script' ] );
 		}
+
 
 		public function enqueue_my_script() {
 			error_log( 'hola' );
@@ -128,7 +130,14 @@ if ( ! class_exists( 'MC_Shipping' ) ) {
 				'class'       => [ 'form-row-wide' ],
 				'options'     => [ '' => 'Seleccione una Comuna' ]
 			];
-
+            $fields['shipping']['shipping_city'] = [
+				'type'        => 'select',
+				'label'       => 'Comuna',
+				'placeholder' => 'Seleccione una Comuna',
+				'required'    => true,
+				'class'       => [ 'form-row-wide' ],
+				'options'     => [ '' => 'Seleccione una Comuna' ]
+			];
 
 			return $fields;
 		}
@@ -171,8 +180,9 @@ if ( ! class_exists( 'MC_Shipping' ) ) {
 
 
 			$data = json_decode( $body, true );
-            return $data;
-            error_log( 'Respuesta del API: ' . $data );
+
+			return $data;
+			error_log( 'Respuesta del API: ' . $data );
 
 			//error_log( 'Respuesta del API: ' . var_dump( $states ) );
 			if ( json_last_error() !== JSON_ERROR_NONE ) {
@@ -196,79 +206,6 @@ if ( ! class_exists( 'MC_Shipping' ) ) {
 			}
 		}
 
-
-		public function load_country_cities() {
-			$transient_key        = 'wc_mc_cities';
-			$transient_expiration = 60 * 60 * 12;
-			$data                 = get_transient( $transient_key );
-
-			if ( ! $data ) {
-				$response = wp_remote_get( ARG_STARKEN_PLUGIN_API_URL . 'country' );
-				try {
-					$data = json_decode( $response['body'], true );
-					set_transient( $transient_key, $data, $transient_expiration );
-				} catch ( Exception $ex ) {
-
-				}
-			}
-
-			$this->cities = apply_filters( 'arg_starken_city_select_cities', $data );
-		}
-
-		public
-		function customCheckoutScript() {
-			if ( ! is_checkout() ) {
-				return;
-			}
-
-			?>
-            <script type="text/javascript">
-                jQuery(function ($) {
-                    console.log('hola');
-                    // Cargar las comunas por región desde el archivo PHP
-                    let comunasPorRegion = <?php echo json_encode( include __DIR__ . '/data/communes.php' ); ?>;
-                    console.log(comunasPorRegion);
-
-                    // Función para actualizar las comunas en un select
-                    function actualizarComunas(selectElement, region) {
-                        var comunaSelect = $(selectElement);
-                        comunaSelect.empty().append('<option value="">Seleccione una Comuna</option>');
-
-                        if (comunasPorRegion[region]) {
-                            $.each(comunasPorRegion[region], function (key, value) {
-                                comunaSelect.append('<option value="' + key + '">' + value + '</option>');
-                            });
-                        }
-                    }
-
-                    // Manejo de cambios en el select de la región para la dirección de facturación
-                    $('select#billing_state').change(function () {
-                        console.log('adios');
-                        let regionSeleccionada = $(this).val();
-                        actualizarComunas('select#billing_city', regionSeleccionada);
-                    });
-
-                    // Manejo de cambios en el select de la región para la dirección de envío
-                    $('select#shipping_state').change(function () {
-                        let regionSeleccionada = $(this).val();
-                        actualizarComunas('select#shipping_city', regionSeleccionada);
-                    });
-
-                    // Cargar comunas al inicio si ya hay una región seleccionada en la dirección de facturación
-                    let regionInicialBilling = $('select#billing_state').val();
-                    if (regionInicialBilling) {
-                        actualizarComunas('select#billing_city', regionInicialBilling);
-                    }
-
-                    // Cargar comunas al inicio si ya hay una región seleccionada en la dirección de envío
-                    let regionInicialShipping = $('select#shipping_state').val();
-                    if (regionInicialShipping) {
-                        actualizarComunas('select#shipping_city', regionInicialShipping);
-                    }
-                });
-            </script>
-			<?php
-		}
 	}
 
 }
