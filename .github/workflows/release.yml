@@ -34,7 +34,7 @@ jobs:
           node-version: '20'
 
       - name: Show tag name
-        run: echo "Tag: $GITHUB_REF_NAME"
+        run: 'echo "Tag: ${GITHUB_REF_NAME}"'
 
       # 👉 Instala dependencias PHP si hay composer.json
       - name: Composer install (no-dev)
