@@ -1,0 +1,132 @@
+name: Build & Attach Release ZIP
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  # 👇 EDITA ESTAS 2 VARIABLES SEGÚN TU PLUGIN
+  PLUGIN_SLUG: chilean-regions-and-cites
+  PLUGIN_MAIN: woocommerce-chilean-regions-and-cities.php
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Set up Node (optional)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Show tag name
+        run: echo "Tag: $GITHUB_REF_NAME"
+
+      # 👉 Instala dependencias PHP si hay composer.json
+      - name: Composer install (no-dev)
+        if: hashFiles('**/composer.json') != ''
+        run: composer install --no-dev --prefer-dist --no-interaction --no-progress
+
+      # 👉 Instala y compila JS si hay package.json
+      - name: NPM install
+        if: hashFiles('**/package.json') != ''
+        run: npm ci
+
+      - name: NPM build
+        if: hashFiles('**/package.json') != ''
+        run: npm run build --if-present
+
+      # ✅ Verifica que la Version del header coincida con el tag (quitando prefijo "v" si existe)
+      - name: Validate plugin header Version vs tag
+        shell: bash
+        run: |
+          if [ ! -f "$PLUGIN_MAIN" ]; then
+            echo "::warning ::No se encontró $PLUGIN_MAIN en la raíz. Salto validación de versión."
+            exit 0
+          fi
+          HEADER_VERSION=$(grep -E "^[[:space:]]*Version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+" -m1 "$PLUGIN_MAIN" | sed -E 's/.*Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          if [ -z "$HEADER_VERSION" ]; then
+            echo "::warning ::No pude extraer la Version del header. Salto validación."
+            exit 0
+          fi
+          TAG_NAME="$GITHUB_REF_NAME"
+          TAG_STRIPPED="${TAG_NAME#v}"   # quita prefijo 'v' si lo hay
+          echo "Header Version: $HEADER_VERSION"
+          echo "Tag (stripped): $TAG_STRIPPED"
+          if [ "$HEADER_VERSION" != "$TAG_STRIPPED" ]; then
+            echo "::error ::La Version del plugin ($HEADER_VERSION) no coincide con el tag ($TAG_STRIPPED)."
+            exit 1
+          fi
+
+      - name: Prepare dist folder
+        run: |
+          rm -rf dist
+          mkdir -p dist
+          rm -rf "$PLUGIN_SLUG"
+          mkdir -p "$PLUGIN_SLUG"
+
+      # Copia todo el plugin dentro de una carpeta con el slug, excluyendo archivos innecesarios
+      - name: Stage plugin files
+        run: |
+          rsync -a \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude ".gitignore" \
+            --exclude ".gitattributes" \
+            --exclude "node_modules" \
+            --exclude "vendor/bin" \
+            --exclude "tests" \
+            --exclude ".DS_Store" \
+            --exclude "*.lock" \
+            --exclude "composer.json" --exclude "composer.lock" \
+            --exclude "package.json" --exclude "package-lock.json" --exclude "pnpm-lock.yaml" --exclude "yarn.lock" \
+            ./ "./$PLUGIN_SLUG"
+          # Si tu plugin necesita vendor, quita el exclude de composer.json y lock (o vuelve a agregarlos aquí)
+          if [ -d "vendor" ]; then
+            rsync -a vendor "./$PLUGIN_SLUG/vendor"
+          fi
+          # Si tu build genera /dist o /build, inclúyelo
+          if [ -d "dist" ] && [ "$PLUGIN_SLUG" != "dist" ]; then
+            rsync -a dist "./$PLUGIN_SLUG/dist"
+          fi
+          if [ -d "build" ]; then
+            rsync -a build "./$PLUGIN_SLUG/build"
+          fi
+
+      - name: Read version for zip name
+        id: ver
+        shell: bash
+        run: |
+          VERSION=$(grep -E "^[[:space:]]*Version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+" -m1 "$PLUGIN_MAIN" | sed -E 's/.*Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          if [ -z "$VERSION" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Zip plugin
+        run: |
+          cd ..
+          zip -r "${GITHUB_WORKSPACE}/dist/${PLUGIN_SLUG}-${{ steps.ver.outputs.version }}.zip" "${GITHUB_WORKSPACE##*/}/${PLUGIN_SLUG}"
+          cd "${GITHUB_WORKSPACE}"
+          ls -lh dist
+
+      - name: Attach ZIP to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
