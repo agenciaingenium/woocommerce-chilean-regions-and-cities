@@ -3,7 +3,7 @@
 Plugin Name: Regiones y Ciudades de Chile para WooCommerce
 Plugin URI: https://github.com/agenciaingenium/woocommerce-chilean-regions-and-cities
 Description:       Añade listas desplegables de regiones y ciudades de Chile en el checkout de WooCommerce.
-Version:           1.0.0
+Version:           1.0.3
 Requires at least: 5.6
 Requires PHP: 7.4
 Requires Plugins: woocommerce
